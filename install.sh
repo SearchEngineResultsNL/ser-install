@@ -452,19 +452,34 @@ menu_opbouwen() {
 # ---- Aanvinklijst met pijltjes en spatiebalk -----------------------
 # Werkt alleen op een echte terminal. Kan dat niet, dan valt het script
 # terug op nummers typen (kies_getypt hieronder).
+#
+# De lijst is langer dan een gemiddeld terminalvenster. Hij wordt daarom
+# door een venster bekeken dat meeschuift met de cursor. Zonder dat
+# scrollt het beeld weg en tekent de lijst over zichzelf heen: je ziet
+# dan dubbele lijsten en de bovenste regels zijn niet meer te bereiken.
 kies_aanvinken() {
   local n i cursor=0 toets rest breedte naambreedte desc_max eerste=1
+  local hoogte zichtbaar venster=0 getekend=0 laatste
   n="${#MENU_NAAM[@]}"
   breedte="$(schermbreedte)"
   naambreedte=26
-  desc_max=$((breedte - naambreedte - 12))
+  desc_max=$((breedte - naambreedte - 14))
+
+  # Hoeveel regels passen er? Zeven houden we vrij voor de uitleg
+  # erboven, de statusregel eronder en de prompt van de shell.
+  hoogte="$(tput lines 2>/dev/null || echo 24)"
+  case "$hoogte" in ''|*[!0-9]*) hoogte=24 ;; esac
+  zichtbaar=$((hoogte - 7))
+  [ "$zichtbaar" -ge 5 ] || zichtbaar=5
+  [ "$zichtbaar" -le "$n" ] || zichtbaar="$n"
 
   # Op de eerste aanvinkbare regel beginnen (regel 0 is een kop).
   while [ "${MENU_SOORT[$cursor]}" = "K" ]; do cursor=$((cursor + 1)); done
 
   printf '\n'
-  info "Pijltjes omhoog/omlaag = bewegen · spatiebalk = aan- of uitvinken"
+  info "Pijltjes = bewegen · spatiebalk = aan- of uitvinken"
   info "a = alles · n = niets · Enter = installeren · q = stoppen"
+  info "Een pakket aanvinken mag samen met losse onderdelen."
   printf '\n'
 
   printf '\033[?25l'                      # cursor verbergen
@@ -480,10 +495,40 @@ kies_aanvinken() {
   }
 
   while :; do
-    [ "$eerste" -eq 1 ] || printf '\033[%dA' "$n"
-    eerste=0
+    # Venster laten meeschuiven met de cursor, met één regel marge: dan
+    # blijft de tussenkop boven de cursor in beeld en zie je waar je zit.
+    [ "$cursor" -ge $((venster + 1)) ] || venster=$((cursor - 1))
+    if [ "$cursor" -ge $((venster + zichtbaar - 1)) ]; then
+      venster=$((cursor - zichtbaar + 2))
+    fi
+    [ "$venster" -le $((n - zichtbaar)) ] || venster=$((n - zichtbaar))
+    [ "$venster" -ge 0 ] || venster=0
 
+    # Welke onderdelen zitten al in een aangevinkt pakket? Die krijgen
+    # een punt in plaats van een leeg vakje, zodat je ziet dat ze
+    # meekomen en je niet per ongeluk dubbel kiest.
+    local inbegrepen=" " aantal=0 onderdeel
     for ((i = 0; i < n; i++)); do
+      if [ "${MENU_SOORT[$i]}" = "P" ] && [ "${MENU_VLAG[$i]}" -eq 1 ]; then
+        while IFS= read -r onderdeel; do
+          case "$inbegrepen" in *" $onderdeel "*) ;; *) inbegrepen="$inbegrepen$onderdeel " ;; esac
+        done < <(pakket_inhoud "${MENU_NAAM[$i]}")
+      fi
+    done
+    for ((i = 0; i < n; i++)); do
+      if [ "${MENU_SOORT[$i]}" = "O" ] && [ "${MENU_VLAG[$i]}" -eq 1 ]; then
+        case "$inbegrepen" in *" ${MENU_NAAM[$i]} "*) ;; *) inbegrepen="$inbegrepen${MENU_NAAM[$i]} " ;; esac
+      fi
+    done
+    for onderdeel in $inbegrepen; do aantal=$((aantal + 1)); done
+
+    [ "$eerste" -eq 1 ] || printf '\033[%dA' "$getekend"
+    eerste=0
+    getekend=0
+
+    laatste=$((venster + zichtbaar - 1))
+    for ((i = venster; i <= laatste; i++)); do
+      getekend=$((getekend + 1))
       if [ "${MENU_SOORT[$i]}" = "K" ]; then
         if [ -n "${MENU_NAAM[$i]}" ]; then
           printf '\r\033[K  %s%s%s\n' "$BOLD" "${MENU_NAAM[$i]}" "$RESET"
@@ -493,7 +538,13 @@ kies_aanvinken() {
         continue
       fi
       local vink pijl kleur
-      [ "${MENU_VLAG[$i]}" -eq 1 ] && vink="x" || vink=" "
+      if [ "${MENU_VLAG[$i]}" -eq 1 ]; then
+        vink="x"
+      elif [ "${MENU_SOORT[$i]}" = "O" ] && case "$inbegrepen" in *" ${MENU_NAAM[$i]} "*) true ;; *) false ;; esac; then
+        vink="·"
+      else
+        vink=" "
+      fi
       if [ "$i" -eq "$cursor" ]; then pijl="›"; kleur="$BOLD"; else pijl=" "; kleur=""; fi
       printf '\r\033[K  %s%s%s %s[%s]%s %s%-*s%s %s%s%s\n' \
         "$BLUE" "$pijl" "$RESET" \
@@ -501,6 +552,14 @@ kies_aanvinken() {
         "$kleur" "$naambreedte" "${MENU_NAAM[$i]}" "$RESET" \
         "$DIM" "$(knip "${MENU_OMS[$i]}" "$desc_max")" "$RESET"
     done
+
+    # Statusregel: waar je bent, en dat er meer is dan je ziet.
+    local pijl_op="  " pijl_neer="  "
+    [ "$venster" -gt 0 ] && pijl_op="↑ "
+    [ "$laatste" -lt $((n - 1)) ] && pijl_neer="↓ "
+    printf '\r\033[K  %s%s%sregel %d van %d · %d gekozen%s\n' \
+      "$DIM" "$pijl_op" "$pijl_neer" "$((cursor + 1))" "$n" "$aantal" "$RESET"
+    getekend=$((getekend + 1))
 
     IFS= read -rsn1 toets || break
     case "$toets" in

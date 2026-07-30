@@ -55,44 +55,77 @@ SER_DRYRUN=1 bash install.sh alles
 
 ## Wat er in de catalogus staat
 
-### SEO-tools
+### A/B-testen
 
-| Onderdeel | Wat het doet |
+| Commando | Wat het doet |
 |---|---|
-| `ser-ab-testplatform` | SEO A/B-test van A tot Z: data, groepen, causal impact-analyse |
-| `ser-ab-test-voorbereiden` | Ruwe CSV klaarzetten voor A/B-analyse |
-| `ser-ab-test-groepen` | URL's splitsen in twee statistisch gelijke groepen |
-| `ser-ai-overviews` | AI Overviews per zoekvraag uitlezen en content erop herschrijven |
-| `ser-ai-overviews-turbo` | Zelfde, maar voor duizenden vragen tegelijk |
-| `ser-alt-teksten` | ALT-teksten genereren met Claude Vision, in bulk vanuit een CSV |
-| `ser-titels-en-metas` | Paginatitels en meta descriptions uit een Screaming Frog-crawl |
-| `ser-titels-en-metas-batch` | Titels en meta's via de Batch-API, voor duizenden URL's |
-| `ser-teksten-batch` | Teksten in bulk via de Batch-API (ongeveer half zo duur) |
-| `ser-faq-generator` | People Also Ask-vragen omzetten naar FAQ-content met interne links |
-| `ser-vragen-clustering` | Duizenden zoekvragen clusteren op betekenis (zwaar, ~2 GB) |
-| `ser-geo-embeddings` | Nederlandse locatie-URL's geocoderen en geo-embeddings maken |
+| [`ser-ab-testplatform`](https://github.com/SearchEngineResultsNL/ser-ab-testplatform) | Complete SEO A/B-test: data uit Search Console of BigQuery, URL's in statistisch gelijke groepen, effect meten met Bayesiaanse causal impact-analyse. **Begin hier** — de drie tools hieronder zitten er al in. |
+| [`ser-ab-test-groepen`](https://github.com/SearchEngineResultsNL/ser-ab-test-groepen) | Alleen de groepenstap: URL's splitsen in twee vergelijkbare groepen, met outlierdetectie en toetsing. |
+| [`ser-ab-test-voorbereiden`](https://github.com/SearchEngineResultsNL/ser-ab-test-voorbereiden) | Alleen de voorbereidingsstap: ruwe CSV omzetten naar een bestand dat de analyse inleest. |
+| [`ser-search-console-export`](https://github.com/SearchEngineResultsNL/ser-search-console-export) | Alleen de datastap: Search Console-data in bulk exporteren, voorbij de limiet van 25.000 rijen. |
 
-### Data-export
+### Content maken
 
-| Onderdeel | Wat het doet |
+| Commando | Wat het doet |
 |---|---|
-| `ser-search-console-export` | Search Console-data in bulk, voorbij de 25.000-rijenlimiet |
-| `ser-linkdata-harvester` | Backlinkdata uit Ahrefs, Semrush, Majestic en SerpAPI in één run |
-| `ser-ga4-export` | GA4-data exporteren met quotabewaking |
+| [`ser-titels-en-metas`](https://github.com/SearchEngineResultsNL/ser-titels-en-metas) | Paginatitels en meta descriptions schrijven op basis van een Screaming Frog-crawl plus keyworddata. |
+| [`ser-titels-en-metas-batch`](https://github.com/SearchEngineResultsNL/ser-titels-en-metas-batch) | Zelfde titels en meta's, maar via de Batch-API — ongeveer half zo duur bij duizenden URL's. |
+| [`ser-alt-teksten`](https://github.com/SearchEngineResultsNL/ser-alt-teksten) | ALT-teksten genereren door de afbeelding echt te laten bekijken door Claude Vision. |
+| [`ser-faq-generator`](https://github.com/SearchEngineResultsNL/ser-faq-generator) | People Also Ask-vragen omzetten naar FAQ-content, inclusief clustering en interne links. |
+| [`ser-teksten-batch`](https://github.com/SearchEngineResultsNL/ser-teksten-batch) | Grote hoeveelheden teksten via de Batch-API van OpenAI of Anthropic: ongeveer half zo duur, klaar binnen 24 uur. |
+
+### AI-zoekresultaten
+
+| Commando | Wat het doet |
+|---|---|
+| [`ser-ai-overviews`](https://github.com/SearchEngineResultsNL/ser-ai-overviews) | Per zoekvraag uitlezen wat Google's AI Overview antwoordt en je content daarop herschrijven. |
+| [`ser-ai-overviews-turbo`](https://github.com/SearchEngineResultsNL/ser-ai-overviews-turbo) | Zelfde analyse, asynchroon en parallel — voor duizenden vragen. |
+
+### Onderzoek en data
+
+| Commando | Wat het doet |
+|---|---|
+| [`ser-vragen-clustering`](https://github.com/SearchEngineResultsNL/ser-vragen-clustering) | Duizenden zoekvragen clusteren op betekenis met embeddings, UMAP en DBSCAN; GPT benoemt de clusters. Zwaar: ongeveer 2 GB aan libraries. |
+| [`ser-linkdata-harvester`](https://github.com/SearchEngineResultsNL/ser-linkdata-harvester) | Backlink- en autoriteitsdata uit Ahrefs, Semrush, Majestic en SerpAPI in één run. |
+| [`ser-ga4-export`](https://github.com/SearchEngineResultsNL/ser-ga4-export) | GA4-data exporteren met vrije keuze uit dimensies en metrics, met quotabewaking. |
+| [`ser-geo-embeddings`](https://github.com/SearchEngineResultsNL/ser-geo-embeddings) | Nederlandse locatie-URL's geocoderen en geografische embeddings maken voor lokale SEO. |
 
 ### Kantoor
 
-| Onderdeel | Wat het doet |
+| Commando | Wat het doet |
 |---|---|
-| `ser-handtekeningen` | Gmail-handtekeningen centraal uitrollen over alle medewerkers |
+| [`ser-handtekeningen`](https://github.com/SearchEngineResultsNL/ser-handtekeningen) | Gmail-handtekeningen centraal beheren en uitrollen via Google Workspace. |
 
 ### Claude Code
 
+Geen terminalcommando's, maar uitbreidingen van Claude Code zelf.
+
 | Onderdeel | Wat het doet |
 |---|---|
-| `ai-agent` | Google Ads-agent met klantcontext, rapportages en audits. Komt in `~/AI Agent` en draait daar zijn eigen installatie (15-30 minuten). |
-| `skills-seo` | De `/seo`-commando's in Claude Code plus hun zes subagents |
-| `skills-ads` | De `/ads`-commando's in Claude Code plus hun zes subagents |
+| [`ai-agent`](https://github.com/SearchEngineResultsNL/ai-agent) | Google Ads-agent met klantcontext, rapportages en audits. Komt in `~/AI Agent` en draait daar zijn eigen installatie (15-30 minuten). Lees daarna `HANDLEIDING.md`. |
+| `skills-seo` | De `/seo`-commando's plus hun zes subagents. Uit [`ser-skills`](https://github.com/SearchEngineResultsNL/ser-skills). |
+| `skills-ads` | De `/ads`-commando's plus hun zes subagents. Uit dezelfde repo. |
+
+---
+
+## Een tool starten
+
+```bash
+ser-alt-teksten
+```
+
+De app opent in je browser. Stoppen: `Ctrl + C` in de terminal. Start het
+commando in de map waar je je bestanden wilt hebben — downloads uit de app
+komen daar terecht.
+
+Geen enkele tool bevat sleutels. Die vul je in de app zelf in, per sessie.
+
+## Bijwerken
+
+```bash
+uv tool upgrade --all                        # alle tools
+bash install.sh skills-seo                   # de skills opnieuw ophalen
+```
 
 ---
 

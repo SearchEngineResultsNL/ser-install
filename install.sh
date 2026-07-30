@@ -47,7 +47,11 @@ LOG="${TMPDIR:-/tmp}/ser-install.log"
 # overschakelen. Bash leest de opdrachten dan uit het bestand en stdin
 # blijft vrij voor de terminal.
 if [ -z "${SER_INSTALL_REEXEC:-}" ] && [ ! -t 0 ]; then
-  if [ ! -e /dev/tty ]; then
+  # /dev/tty kán bestaan zonder bruikbaar te zijn (cron, CI, een agent
+  # zonder terminal). Daarom niet kijken óf hij bestaat, maar of hij
+  # opengaat — anders faalt de omleiding pas ná de exec, en dan is er
+  # geen foutmelding meer die iets verduidelijkt.
+  if ! (: < /dev/tty) 2>/dev/null; then
     printf 'Fout: geen terminal beschikbaar voor de installatie.\n' >&2
     printf 'Download het script en draai het rechtstreeks:\n' >&2
     printf '  curl -fsSLO %s\n' "$SCRIPT_URL" >&2

@@ -229,15 +229,31 @@ if [ "$DRYRUN" = "1" ]; then
 fi
 
 # --- Command Line Tools (levert git en de compilers) ---------------
-if command -v git >/dev/null 2>&1; then
+#
+# Op macOS bestaat /usr/bin/git altijd, ook zonder Command Line Tools. Dat
+# is een doorgeefluik dat pas bij uitvoeren klaagt ("No developer tools
+# were found"). 'command -v git' ziet dat verschil niet en zegt dus ten
+# onrechte dat git er is. Gevolg: stap 1 gaat groen door, Homebrew faalt,
+# 'gh auth setup-git' faalt, en elke tool struikelt op 'git init' — vijftien
+# keer dezelfde fout zonder dat de oorzaak in beeld komt. Daarom git echt
+# draaien in plaats van hem alleen opzoeken.
+git_werkt() {
+  command -v git >/dev/null 2>&1 && git --version >/dev/null 2>&1
+}
+
+if git_werkt; then
   ok "git aanwezig"
 elif [ "$BESTURING" = "Darwin" ]; then
-  warn "git ontbreekt — macOS opent nu het venster voor de Command Line Tools"
+  warn "Command Line Tools ontbreken — macOS opent nu het installatievenster"
   xcode-select --install 2>/dev/null || true
-  info "Rond die installatie af (duurt een paar minuten) en draai dit script opnieuw."
+  printf '\n'
+  info "Klik in dat venster op 'Installeer' en wacht tot het klaar is."
+  info "Dat duurt 5 tot 10 minuten. Draai daarna dit script opnieuw:"
+  info "  bash install.sh seo"
   exit 1
 else
-  fail "git ontbreekt. Installeer het via je pakketbeheerder en draai opnieuw."
+  fail "git ontbreekt of werkt niet. Installeer het via je pakketbeheerder."
+  toon_log
   exit 1
 fi
 
@@ -714,6 +730,57 @@ info "Reken op één tot vijf minuten per tool. ser-vragen-clustering duurt"
 info "langer (~2 GB) en ai-agent draait zijn eigen installatie van 15-30 min."
 printf '\n'
 
+# ── Claude Code ─────────────────────────────────────────────────────
+#
+# De skills landen in ~/.claude en de Ads-agent draait erin. Zonder Claude
+# Code zet de installer die bestanden gewoon neer, meldt "klaar", en bestaat
+# /seo daarna nog steeds niet. Die stille mislukking kost iemand een dag
+# zoeken. Dus: controleren, en alleen ophalen als er iets geselecteerd is
+# dat hem nodig heeft.
+CLAUDE_NIEUW=0
+
+claude_code_nodig() {
+  case " ${SELECTIE[*]-} " in
+    *" skills-"*|*" ai-agent "*) return 0 ;;
+  esac
+  return 1
+}
+
+zorg_voor_claude_code() {
+  if command -v claude >/dev/null 2>&1; then
+    ok "Claude Code aanwezig ($(claude --version 2>/dev/null | awk '{print $1}'))"
+    return 0
+  fi
+
+  if [ "$DRYRUN" = "1" ]; then
+    info "Claude Code ontbreekt — zou nu opgehaald worden"
+    return 0
+  fi
+
+  info "Claude Code installeren..."
+  if curl -fsSL https://claude.ai/install.sh 2>>"$LOG" | bash >>"$LOG" 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r
+  fi
+
+  if command -v claude >/dev/null 2>&1; then
+    ok "Claude Code geïnstalleerd"
+    pad_vastleggen
+    CLAUDE_NIEUW=1
+    return 0
+  fi
+
+  warn "Claude Code kon niet geïnstalleerd worden"
+  info "Installeer hem zelf: https://code.claude.com/docs/en/setup"
+  info "De skills worden wel neergezet en werken zodra hij er is."
+  return 1
+}
+
+if claude_code_nodig; then
+  zorg_voor_claude_code || true
+  printf '\n'
+fi
+
 GELUKT=(); MISLUKT=(); COMMANDOS=()
 
 # Toegang controleren en een openstaande uitnodiging meteen accepteren.
@@ -877,6 +944,12 @@ if [ "${#GELUKT[@]}" -gt 0 ]; then
   case " ${GELUKT[*]} " in
     *" skills-seo "*|*" skills-ads "*)
       printf '\n'
+      if [ "$CLAUDE_NIEUW" = "1" ]; then
+        info "Claude Code is nieuw op deze Mac. Start hem één keer en log in:"
+        info "  claude"
+        info "Dat vraagt een Claude-account met Pro, Max, Team of Console."
+        printf '\n'
+      fi
       info "Start Claude Code opnieuw op; daarna werken de nieuwe commando's:"
       case " ${GELUKT[*]} " in *" skills-seo "*) info "  /seo audit <url>" ;; esac
       case " ${GELUKT[*]} " in *" skills-ads "*) info "  /ads audit" ;; esac

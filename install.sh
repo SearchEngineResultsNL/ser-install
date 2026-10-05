@@ -95,6 +95,28 @@ toon_log() {
 trap 'rm -f "${SER_INSTALL_SELF:-}"' EXIT INT TERM
 : > "$LOG"
 
+# ── Pakket 'ontwikkelaar': een apart script ─────────────────────────
+#
+# Dit pakket hoort niet in de catalogus hieronder: het installeert geen los
+# commando, maar richt een hele werkplek in (basissoftware, de vier
+# platform-repo's, een SSH-sleutel, de testomgeving, Claude Code). Dat staat
+# in zijn eigen bestand, ontwikkelaar.sh, dat dit script doorstart.
+if [ "${1:-}" = "ontwikkelaar" ]; then
+  shift
+  export DRY_RUN="${DRY_RUN:-$DRYRUN}"   # zelfde proefrun-vlag, andere naam
+  HIER_INSTALL="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+  if [ -f "$HIER_INSTALL/ontwikkelaar.sh" ]; then
+    exec bash "$HIER_INSTALL/ontwikkelaar.sh" "$@"
+  fi
+  ONTWIKKELAAR_URL="https://raw.githubusercontent.com/$GITHUB_ACCOUNT/ser-install/main/ontwikkelaar.sh"
+  ONTWIKKELAAR_ZELF="$(mktemp -t ser-ontwikkelaar)" || ONTWIKKELAAR_ZELF="/tmp/ser-ontwikkelaar-$$.sh"
+  if curl -fsSL "$ONTWIKKELAAR_URL" -o "$ONTWIKKELAAR_ZELF" && [ -s "$ONTWIKKELAAR_ZELF" ]; then
+    exec bash "$ONTWIKKELAAR_ZELF" "$@"
+  fi
+  fail "Kon ontwikkelaar.sh niet ophalen."
+  exit 1
+fi
+
 # ── Catalogus ───────────────────────────────────────────────────────
 #
 # Per regel: naam|type|pakketten|omschrijving

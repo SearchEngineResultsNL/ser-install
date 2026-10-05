@@ -32,6 +32,55 @@ curl -fsSL https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/m
 curl -fsSL https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main/install.sh | bash -s -- ser-alt-teksten
 ```
 
+## Ontwikkelaar: werkplek voor de platforms zelf
+
+Geen los tool-commando, maar een hele werkplek voor wie meebouwt aan
+**tools.searchengineresults.nl** en **analytics.searchengineresults.nl**:
+basissoftware, de vier platform-repo's, een eigen SSH-sleutel, de
+testomgeving (één keer gedraaid, mét een tijdelijke Postgres) en Claude Code.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main/install.sh | bash -s -- ontwikkelaar
+```
+
+Alleen kijken wat er zou gebeuren, zonder iets te doen:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main/ontwikkelaar.sh
+bash ontwikkelaar.sh --droog        # of: DRY_RUN=1 bash ontwikkelaar.sh
+```
+
+Stap voor stap:
+
+1. **Basissoftware** — Command Line Tools, Homebrew, git, GitHub CLI, node
+   (20 of hoger), `uv` + Python 3.12, rsync, gitleaks, Claude Code, en een
+   Playwright-browser voor de frontend-QA.
+2. **GitHub** — inloggen met je eigen account; toegang controleren tot de
+   vier repo's (`ser-analytics-platform`, `ser-automation-platform`,
+   `ser-deploy`, `ser-werkruimte`) en ze klonen naar je thuismap (of een zelf
+   gekozen map). `SearchEngineResultsNL` is op GitHub een gewoon account,
+   geen organisatie: toegang gaat per repo als collaborator. Geen toegang?
+   Vraag Marten je toe te voegen — https://github.com/SearchEngineResultsNL
+3. **Eigen SSH-sleutel** — gemaakt als die nog ontbreekt; het script toont
+   alleen het publieke deel, met de instructie dat naar Marten te sturen voor
+   toegang tot de VPS. Er gaat nooit iets automatisch naar de server.
+4. **Testomgeving** — afhankelijkheden installeren en één keer de volledige
+   testsuite draaien, mét een tijdelijke Postgres (`pgserver`), zodat de
+   `*_pg.py`/`*_postgres.py`-tests meedraaien in plaats van stil overgeslagen
+   te worden. Heeft een repo (branch `snellere-tests`) een
+   `scripts/test-alles.sh`, dan wordt die gebruikt.
+5. **Claude Code** — uitleg over inloggen en de `AGENTS.md`/`CLAUDE.md` in
+   elke repo, met optioneel de MCP-koppeling. Het agent-token gaat alleen via
+   een prompt de sleutelhanger in — nooit als argument en nooit in een
+   bestand.
+6. **Eindoverzicht** — wat gelukt is, wat is overgeslagen en wat nog moet, en
+   wat daarna: lees `docs/ONTWIKKELEN.md`, werk altijd op een feature-branch
+   (nooit direct naar `main`), uitrollen doet Marten, geheimen staan in
+   Keeper (vraag toegang tot de gedeelde map "SER Platform").
+
+Veilig om opnieuw te draaien: wat er al staat, wordt overgeslagen, nooit
+overschreven.
+
 ## Eerst kijken wat er gebeurt
 
 Controleert je toegang tot alle repo's, maar installeert niets:
@@ -52,6 +101,7 @@ SER_DRYRUN=1 bash install.sh alles
 | `data` | Alleen de data-exports: Search Console, GA4, backlinkdata |
 | `kantoor` | Losse kantoortools |
 | `alles` | Alles hierboven |
+| `ontwikkelaar` | Geen tool-commando's, maar de werkplek voor de platforms zelf — zie "Ontwikkelaar" hieronder |
 
 ## Wat er in de catalogus staat
 
@@ -154,13 +204,21 @@ spitten.
 ### Iemand toegang geven
 
 ```bash
-bash collega-toevoegen.sh <github-gebruikersnaam>              # alles, alleen lezen
-bash collega-toevoegen.sh <github-gebruikersnaam> ads          # alleen de Ads-repo's
-bash collega-toevoegen.sh <github-gebruikersnaam> seo push     # SEO, mag wijzigen
+bash collega-toevoegen.sh <github-gebruikersnaam>                 # alles, alleen lezen
+bash collega-toevoegen.sh <github-gebruikersnaam> ads             # alleen de Ads-repo's
+bash collega-toevoegen.sh <github-gebruikersnaam> seo push        # SEO, mag wijzigen
+bash collega-toevoegen.sh <github-gebruikersnaam> ontwikkelaar    # de vier platform-repo's, push
 ```
 
 De repolijst komt uit de catalogus in `install.sh`, dus die hoef je niet op
-twee plekken bij te houden.
+twee plekken bij te houden — behalve voor `ontwikkelaar`: dat zijn geen
+tool-repo's uit de catalogus, maar de vier repo's achter de platforms zelf
+(`ser-analytics-platform`, `ser-automation-platform`, `ser-deploy`,
+`ser-werkruimte`), met als standaardrol `push` in plaats van `pull`. Na het
+versturen van de uitnodigingen print het script een checklist met wat jij
+nog met de hand moet doen: de Keeper-map "SER Platform" delen, de publieke
+SSH-sleutel van de collega (met zijn naam erbij) op de VPS zetten, eventueel
+een agent-token aanmaken, en eventueel een Vercel-uitnodiging.
 
 ### Een tool toevoegen
 
@@ -182,7 +240,10 @@ De velden zijn `naam|type|pakketten|omschrijving`. Meerdere pakketten mag:
 | De skills | `SearchEngineResultsNL/ser-skills` (privé) |
 | De Ads-agent | `SearchEngineResultsNL/ai-agent` (privé) |
 | Elke tool | `SearchEngineResultsNL/ser-<naam>` (privé) |
-| Logboek van een installatie | `$TMPDIR/ser-install.log` |
+| Het pakket `ontwikkelaar` | `ontwikkelaar.sh` in deze repo (publiek) |
+| De twee platforms | `SearchEngineResultsNL/ser-analytics-platform` en `ser-automation-platform` (privé) |
+| Infrastructuur + overdracht | `SearchEngineResultsNL/ser-deploy` (privé) |
+| Logboek van een installatie | `$TMPDIR/ser-install.log` (of `ser-ontwikkelaar.log`) |
 | Werkmap voor gekloonde repo's | `~/.ser-install/` |
 
 Pas een tool aan **in zijn repo**, niet in een los bestand op je Mac.

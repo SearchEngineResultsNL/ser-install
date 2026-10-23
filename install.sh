@@ -132,6 +132,7 @@ CATALOGUS=(
 
   "KOP|Claude Code: agent en skills"
   "ai-agent|clone|ads|Google Ads-agent met klantcontext, rapportages en audits"
+  "seo-agent|clone|seo|SEO-agent: SEO-audits met rapport in SER-huisstijl (samen bouwen)"
   "skills-seo|skills|seo|De /seo-commando's in Claude Code plus hun zes subagents"
   "skills-ads|skills|ads|De /ads-commando's in Claude Code plus hun zes subagents"
 )
@@ -140,7 +141,7 @@ CATALOGUS=(
 # naam|omschrijving. De inhoud komt uit de kolom 'pakketten' hierboven,
 # zodat een onderdeel toevoegen aan een pakket één woord kost.
 PAKKETTEN=(
-  "seo|Alles voor SEO: 14 tools plus de /seo-audits in Claude Code"
+  "seo|Alles voor SEO: 14 tools, de SEO-agent en de /seo-audits in Claude Code"
   "ads|Alles voor advertenties: de Google Ads-agent plus de /ads-audits"
   "data|Alleen de data-exports: Search Console, GA4, backlinkdata"
   "kantoor|Losse kantoortools"
@@ -741,7 +742,7 @@ CLAUDE_NIEUW=0
 
 claude_code_nodig() {
   case " ${SELECTIE[*]-} " in
-    *" skills-"*|*" ai-agent "*) return 0 ;;
+    *" skills-"*|*" ai-agent "*|*" seo-agent "*) return 0 ;;
   esac
   return 1
 }
@@ -846,6 +847,7 @@ installeer_clone() {
 
   case "$naam" in
     ai-agent) doel="${AI_AGENT_DIR:-$HOME/AI Agent}" ;;
+    seo-agent) doel="${SEO_AGENT_DIR:-$HOME/SEO Agent}" ;;
     *)        doel="$WERKMAP/$naam" ;;
   esac
 
@@ -854,6 +856,7 @@ installeer_clone() {
     fail "De map bestaat al en bevat bestanden: $doel"
     info "Hernoem of verplaats die map eerst, of kies een andere locatie:"
     info "  AI_AGENT_DIR=\"\$HOME/AI Agent 2\" bash install.sh ads"
+    info "  SEO_AGENT_DIR=\"\$HOME/SEO Agent 2\" bash install.sh seo"
     return 1
   fi
 
@@ -961,6 +964,13 @@ if [ "${#GELUKT[@]}" -gt 0 ]; then
       printf '\n'
       info "De Google Ads-agent staat in: ${AI_AGENT_DIR:-$HOME/AI Agent}"
       info "Lees daar HANDLEIDING.md voor de eerste stappen."
+      ;;
+  esac
+  case " ${GELUKT[*]} " in
+    *" seo-agent "*)
+      printf '\n'
+      info "De SEO-agent staat in: ${SEO_AGENT_DIR:-$HOME/SEO Agent}"
+      info "Lees daar README.md en docs/samenwerken.md."
       ;;
   esac
 fi

@@ -7,7 +7,7 @@ Python, `uv`, de GitHub CLI en het inloggen.
 ## Een pakket installeren
 
 ```bash
-# Alles voor SEO — 14 tools plus de /seo-audits in Claude Code
+# Alles voor SEO — 14 tools, de SEO-agent en de /seo-audits in Claude Code
 curl -fsSL https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main/install.sh | bash -s -- seo
 
 # Alles voor advertenties — de Google Ads-agent plus de /ads-audits
@@ -103,6 +103,7 @@ Geen terminalcommando's, maar uitbreidingen van Claude Code zelf.
 | Onderdeel | Wat het doet |
 |---|---|
 | [`ai-agent`](https://github.com/SearchEngineResultsNL/ai-agent) | Google Ads-agent met klantcontext, rapportages en audits. Komt in `~/AI Agent` en draait daar zijn eigen installatie (15-30 minuten). Lees daarna `HANDLEIDING.md`. |
+| [`seo-agent`](https://github.com/SearchEngineResultsNL/seo-agent) | SEO-agent: SEO-audits met rapport in SER-huisstijl. Komt in `~/SEO Agent` en draait daar `install.sh` (koppeling SER-platform). Samenwerken: `docs/samenwerken.md`. |
 | `skills-seo` | De `/seo`-commando's plus hun zes subagents. Uit [`ser-skills`](https://github.com/SearchEngineResultsNL/ser-skills). |
 | `skills-ads` | De `/ads`-commando's plus hun zes subagents. Uit dezelfde repo. |
 
@@ -181,6 +182,7 @@ De velden zijn `naam|type|pakketten|omschrijving`. Meerdere pakketten mag:
 | Deze installer | `SearchEngineResultsNL/ser-install` (publiek) |
 | De skills | `SearchEngineResultsNL/ser-skills` (privé) |
 | De Ads-agent | `SearchEngineResultsNL/ai-agent` (privé) |
+| De SEO-agent | `SearchEngineResultsNL/seo-agent` (privé) |
 | Elke tool | `SearchEngineResultsNL/ser-<naam>` (privé) |
 | Logboek van een installatie | `$TMPDIR/ser-install.log` |
 | Werkmap voor gekloonde repo's | `~/.ser-install/` |

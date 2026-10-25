@@ -132,9 +132,9 @@ CATALOGUS=(
 
   "KOP|Claude Code: agent en skills"
   "ai-agent|clone|ads|Google Ads-agent met klantcontext, rapportages en audits"
-  "seo-agent|clone|seo|SEO-agent: SEO-audits met rapport in SER-huisstijl (samen bouwen)"
   "skills-seo|skills|seo|De /seo-commando's in Claude Code plus hun zes subagents"
   "skills-ads|skills|ads|De /ads-commando's in Claude Code plus hun zes subagents"
+  "seo-agent|clone|seo|SEO-agent: SEO-audits met rapport in SER-huisstijl (samen bouwen)"
 )
 
 # ── Pakketten ───────────────────────────────────────────────────────

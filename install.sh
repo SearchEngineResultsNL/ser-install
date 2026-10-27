@@ -964,6 +964,7 @@ if [ "${#GELUKT[@]}" -gt 0 ]; then
       printf '\n'
       info "De Google Ads-agent staat in: ${AI_AGENT_DIR:-$HOME/AI Agent}"
       info "Lees daar HANDLEIDING.md voor de eerste stappen."
+      info "Meta Ads: de MCP staat al in de agent. Start claude, typ /mcp, kies meta-ads en log in met je eigen Meta-account (schrijven vraagt altijd eerst jouw bevestiging)."
       ;;
   esac
   case " ${GELUKT[*]} " in

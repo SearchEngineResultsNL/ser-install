@@ -499,6 +499,28 @@ for repo in $REPOS; do
   fi
 done
 
+# Startritueel (besluit 27-10, ser-deploy/START.md): het commando
+# 'ser-bijwerken' haalt vóór het ontwikkelen alle SER-repo's op (alleen
+# fast-forward). Het script zelf staat in ser-deploy; hier alleen een snelkoppeling.
+case " $GEKLOOND " in
+  *" ser-deploy "*)
+    BIJWERKEN_BIN="$HOME/.local/bin/ser-bijwerken"
+    if [ -e "$BIJWERKEN_BIN" ] && ! grep -q "ser-bijwerken-shim" "$BIJWERKEN_BIN" 2>/dev/null; then
+      warn "$BIJWERKEN_BIN bestaat al (niet van ons) — niets aangeraakt"
+      info "Startritueel dan zo: bash $MAP/ser-deploy/scripts/bijwerken.sh"
+    elif [ "$DROOG" = "1" ]; then
+      droog_melding "zou $BIJWERKEN_BIN aanmaken (startritueel: bash $MAP/ser-deploy/scripts/bijwerken.sh)"
+    else
+      mkdir -p "$HOME/.local/bin"
+      printf '%s\n' '#!/bin/bash' \
+        '# ser-bijwerken-shim — aangemaakt door ser-install/ontwikkelaar.sh (startritueel, ser-deploy/START.md)' \
+        "exec bash \"$MAP/ser-deploy/scripts/bijwerken.sh\" --map \"$MAP\" \"\$@\"" > "$BIJWERKEN_BIN"
+      chmod 755 "$BIJWERKEN_BIN"
+      ok "commando ser-bijwerken (startritueel) aangemaakt"; gedaan "ser-bijwerken (startritueel)"
+    fi
+    ;;
+esac
+
 # =======================================================================
 # Stap 3 van 6 — Eigen SSH-sleutel (voor latere VPS-toegang)
 # =======================================================================
@@ -711,8 +733,9 @@ lijst "Overgeslagen"     ${OVERGESLAGEN[@]+"${OVERGESLAGEN[@]}"}
 lijst "Nog te doen (✗)"  ${NOG_DOEN[@]+"${NOG_DOEN[@]}"}
 
 printf '\n  %sWat nu%s\n' "$BOLD" "$RESET"
-printf '    • Lees in elke repo %sdocs/ONTWIKKELEN.md%s en %sAGENTS.md%s vóór je iets wijzigt.\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
-printf '    • Werk altijd op een eigen feature-branch vanaf %sorigin/main%s — nooit direct op main.\n' "$BOLD" "$RESET"
+printf '    • Begin elke keer met het startritueel: %sser-bijwerken%s (alle repo'"'"'s ophalen, alleen fast-forward).\n' "$BOLD" "$RESET"
+printf '    • Lees eerst %s%s/ser-deploy/START.md%s, daarna per repo %sAGENTS.md%s en %sdocs/ONTWIKKELEN.md%s.\n' "$BOLD" "$MAP" "$RESET" "$BOLD" "$RESET" "$BOLD" "$RESET"
+printf '    • Werk op een eigen branch vanaf de %sverse integratiebranch%s (START.md §2) — nooit direct op main.\n' "$BOLD" "$RESET"
 printf '    • Uitrollen naar productie doet Marten, of jij na expliciete afspraak met hem.\n'
 printf '    • Geheimen staan in Keeper. Vraag Marten toegang tot de gedeelde map "SER Platform".\n'
 printf '    • Zodra je toegang hebt: %s%s/ser-deploy/installer/install-platform.sh%s regelt de\n' "$DIM" "$MAP" "$RESET"

@@ -61,6 +61,11 @@ Stap voor stap:
    gekozen map). `SearchEngineResultsNL` is op GitHub een gewoon account,
    geen organisatie: toegang gaat per repo als collaborator. Geen toegang?
    Vraag Marten je toe te voegen — https://github.com/SearchEngineResultsNL
+   Daarna komt het commando `ser-bijwerken` in `~/.local/bin`: het
+   **startritueel** (`ser-deploy/scripts/bijwerken.sh`) dat je vóór elke
+   ontwikkelsessie draait — alle SER-repo's ophalen, alleen fast-forward,
+   waarschuwing bij lokale wijzigingen of een oude basis (besluit 27-10,
+   zie `ser-deploy/START.md`).
 3. **Eigen SSH-sleutel** — gemaakt als die nog ontbreekt; het script toont
    alleen het publieke deel, met de instructie dat naar Marten te sturen voor
    toegang tot de VPS. Er gaat nooit iets automatisch naar de server.
@@ -74,8 +79,9 @@ Stap voor stap:
    een prompt de sleutelhanger in — nooit als argument en nooit in een
    bestand.
 6. **Eindoverzicht** — wat gelukt is, wat is overgeslagen en wat nog moet, en
-   wat daarna: lees `docs/ONTWIKKELEN.md`, werk altijd op een feature-branch
-   (nooit direct naar `main`), uitrollen doet Marten, geheimen staan in
+   wat daarna: begin elke keer met `ser-bijwerken`, lees `ser-deploy/START.md`
+   en per repo `docs/ONTWIKKELEN.md`, werk op een eigen branch vanaf de verse
+   integratiebranch (nooit direct naar `main`), uitrollen doet Marten, geheimen staan in
    Keeper (vraag toegang tot de gedeelde map "SER Platform").
 
 Veilig om opnieuw te draaien: wat er al staat, wordt overgeslagen, nooit

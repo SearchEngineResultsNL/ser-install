@@ -252,7 +252,12 @@ Pas een tool aan **in zijn repo**, niet in een los bestand op je Mac.
 **"Het commando wordt niet gevonden"** — open een nieuwe terminal, of draai
 `export PATH="$HOME/.local/bin:$PATH"`.
 
-**Testen** — `bash tests/persoon.test.sh` (nep-commando's, raakt je Mac niet).
+**Testen** — `bash tests/persoon.test.sh` (nep-commando's, raakt je Mac niet). De testhaken
+(`SER_INSTALL_SH`, `SER_BREW_BIN`, `SER_CLAUDE_APP`, `SER_DESKTOP_CONFIG`, `SER_PERSOON_INVOER`, `SER_MCP_DIR`, een
+andere `SER_ANALYTICS_API_URL`) werken alleen met `SER_PERSOON_TEST=1` en worden luid gemeld; `SER_INSTALL_BASIS` mag
+alleen onder `https://raw.githubusercontent.com/SearchEngineResultsNL/`. Bestaande agentmappen met lokale wijzigingen
+of eigen commits werkt `install.sh` niet bij (waarschuwing), en `~/.ser-mcp` wordt alleen gereset als het een sparse
+kopie is.
 
 **"Geen toegang tot …"** — je GitHub-account is nog geen collaborator, of je
 bent ingelogd met je privé-account. Wisselen: `gh auth switch`.

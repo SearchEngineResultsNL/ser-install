@@ -137,6 +137,8 @@ pad_vastleggen() {
 }
 
 brew_bin() {
+  # SER_BREW_BIN: alleen voor de tests (een pad dat niet bestaat = geen Homebrew).
+  if [ -n "${SER_BREW_BIN:-}" ]; then [ -x "$SER_BREW_BIN" ] && { echo "$SER_BREW_BIN"; return 0; }; return 1; fi
   command -v brew 2>/dev/null && return 0
   [ -x /opt/homebrew/bin/brew ] && { echo /opt/homebrew/bin/brew; return 0; }
   [ -x /usr/local/bin/brew ] && { echo /usr/local/bin/brew; return 0; }
@@ -281,7 +283,7 @@ claude_ingelogd() {
 
 app_pad() {
   local p
-  for p in "/Applications/Claude.app" "$HOME/Applications/Claude.app"; do
+  for p in "${SER_CLAUDE_APP:-/Applications/Claude.app}" "$HOME/Applications/Claude.app"; do
     [ -d "$p" ] && { printf '%s' "$p"; return 0; }
   done
   return 1

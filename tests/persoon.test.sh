@@ -373,6 +373,54 @@ UIT="$(cd "$REPO" && bash collega-toevoegen.sh robin-ser seo 2>&1)"
 check "collega-toevoegen seo: géén platform-repo" '! grep -q "ser-automation-platform" "$FAKE/argv.log"' "$UIT"
 opruimen
 
+
+# install.sh-functies los getest (uit het script geknipt)
+F="$(mktemp -d)"
+for fn in haal_repo installeer_mcp controleer_sha256; do
+  sed -n "/^$fn() {/,/^}/p" "$REPO/install.sh" >> "$F/functies.sh"
+done
+(
+  set +e
+  export HOME="$F/home"; mkdir -p "$HOME"
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t GIT_CONFIG_GLOBAL=/dev/null
+  LOG="$F/log"; GITHUB_ACCOUNT=x; PYTHON_VERSIE=3.12; SER_MCP_REPO=ser-automation-platform
+  warn() { printf 'WARN %s\n' "$*"; }; fail() { printf 'FAIL %s\n' "$*"; }; info() { :; }; ok() { :; }
+  heeft_toegang() { return 0; }
+  # shellcheck disable=SC1091
+  . "$F/functies.sh"
+  git init -q --bare -b main "$F/origin.git"
+  git clone -q "$F/origin.git" "$F/werk" 2>/dev/null
+  (cd "$F/werk" && echo een > a && git add a && git commit -qm een && git push -q origin main)
+  git clone -q "$F/origin.git" "$F/doel"
+  git -C "$F/doel" remote set-head origin main >/dev/null 2>&1
+  (cd "$F/werk" && echo twee > a && git commit -qam twee && git push -q origin main)
+  echo eigen > "$F/doel/b"
+  uit="$(haal_repo r "$F/doel")"
+  case "$uit" in *"lokale wijzigingen"*) [ -f "$F/doel/b" ] && echo "T1 ok" ;; esac
+  rm "$F/doel/b"
+  (cd "$F/doel" && echo lokaal > c && git add c && git commit -qm lokaal)
+  uit="$(haal_repo r "$F/doel")"
+  case "$uit" in *"lokale commit"*) [ -f "$F/doel/c" ] && echo "T2 ok" ;; esac
+  git -C "$F/doel" reset -q --hard HEAD~1
+  haal_repo r "$F/doel" >/dev/null
+  [ "$(cat "$F/doel/a")" = "twee" ] && echo "T3 ok"
+  SER_MCP_DIR="$F/doel"
+  uit="$(installeer_mcp)"; rc=$?
+  case "$uit" in *"geen ser-MCP-kopie"*) [ "$rc" -ne 0 ] && [ -f "$F/doel/a" ] && echo "T4 ok" ;; esac
+  printf 'x' > "$F/bestand"
+  printf '%s  gh.zip\n' "$(shasum -a 256 "$F/bestand" | awk '{print $1}')" > "$F/sums"
+  controleer_sha256 "$F/bestand" "$F/sums" gh.zip && echo "T5 ok"
+  printf 'y' > "$F/bestand"
+  controleer_sha256 "$F/bestand" "$F/sums" gh.zip || echo "T6 ok"
+) > "$F/uitslag" 2>&1
+check "haal_repo: vuile werkboom niet weggeveegd" 'grep -q "T1 ok" "$F/uitslag"' "$(cat "$F/uitslag")"
+check "haal_repo: lokale commits niet weggeveegd" 'grep -q "T2 ok" "$F/uitslag"'
+check "haal_repo: schone kopie wordt bijgewerkt" 'grep -q "T3 ok" "$F/uitslag"'
+check "installeer_mcp: gewone clone (geen sparse) niet aangeraakt" 'grep -q "T4 ok" "$F/uitslag"' "$(cat "$F/uitslag")"
+check "controleer_sha256: juist bestand ok" 'grep -q "T5 ok" "$F/uitslag"'
+check "controleer_sha256: gewijzigd bestand geweigerd" 'grep -q "T6 ok" "$F/uitslag"'
+rm -rf "$F"
+
 if [ -n "$SHELLCHECK" ]; then
   check "shellcheck persoon.sh" '"$SHELLCHECK" -S warning "$REPO/persoon.sh"' "$("$SHELLCHECK" -S warning "$REPO/persoon.sh" 2>&1)"
   check "shellcheck install.sh en collega-toevoegen.sh (warning)" '"$SHELLCHECK" -S warning "$REPO/install.sh" "$REPO/collega-toevoegen.sh"' "$("$SHELLCHECK" -S warning "$REPO/install.sh" "$REPO/collega-toevoegen.sh" 2>&1 | head -30)"

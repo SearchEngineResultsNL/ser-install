@@ -350,6 +350,15 @@ else
 fi
 
 # --- GitHub CLI ------------------------------------------------------
+# controleer_sha256 <bestand> <checksums.txt> <naam in checksums>
+controleer_sha256() {
+  local verwacht echt
+  verwacht="$(awk -v n="$3" '$2 == n {print $1}' "$2" 2>/dev/null | head -1)"
+  [ -n "$verwacht" ] || return 1
+  echt="$(shasum -a 256 "$1" 2>/dev/null | awk '{print $1}')"
+  [ -n "$echt" ] && [ "$echt" = "$verwacht" ]
+}
+
 installeer_gh_los() {
   local arch tag ver tmp bestand rc
   arch="$(uname -m)"
@@ -367,12 +376,20 @@ installeer_gh_los() {
     bestand="gh_${ver}_macOS_${arch}"
     if curl -fsSL -o "$tmp/gh.zip" \
          "https://github.com/cli/cli/releases/download/${tag}/${bestand}.zip" 2>>"$LOG" \
+       && curl -fsSL -o "$tmp/checksums.txt" \
+         "https://github.com/cli/cli/releases/download/${tag}/gh_${ver}_checksums.txt" 2>>"$LOG" \
+       && { controleer_sha256 "$tmp/gh.zip" "$tmp/checksums.txt" "${bestand}.zip" \
+            || { fail "Checksum van gh klopt niet — niet geïnstalleerd."; false; }; } \
        && unzip -q -o "$tmp/gh.zip" -d "$tmp" \
        && cp "$tmp/${bestand}/bin/gh" "$LOCAL_BIN/gh"; then rc=0; fi
   else
     bestand="gh_${ver}_linux_${arch}"
     if curl -fsSL -o "$tmp/gh.tgz" \
          "https://github.com/cli/cli/releases/download/${tag}/${bestand}.tar.gz" 2>>"$LOG" \
+       && curl -fsSL -o "$tmp/checksums.txt" \
+         "https://github.com/cli/cli/releases/download/${tag}/gh_${ver}_checksums.txt" 2>>"$LOG" \
+       && { controleer_sha256 "$tmp/gh.tgz" "$tmp/checksums.txt" "${bestand}.tar.gz" \
+            || { fail "Checksum van gh klopt niet — niet geïnstalleerd."; false; }; } \
        && tar -xzf "$tmp/gh.tgz" -C "$tmp" \
        && cp "$tmp/${bestand}/bin/gh" "$LOCAL_BIN/gh"; then rc=0; fi
   fi
@@ -822,12 +839,26 @@ heeft_toegang() {
 }
 
 # Repo ophalen of bijwerken in de werkmap.
+# Bestaande map: alleen bijwerken als er niets lokaal te verliezen is. Een
+# vuile werkboom of eigen commits die nog niet op origin staan (iemand werkt
+# in ~/AI Agent) worden nooit weggeveegd: dan overslaan met een waarschuwing.
 haal_repo() {
-  local repo="$1" doel="$2"
+  local repo="$1" doel="$2" tak voor
   if [ -d "$doel/.git" ]; then
     git -C "$doel" fetch --quiet origin >>"$LOG" 2>&1 || true
-    git -C "$doel" reset --hard --quiet "origin/$(git -C "$doel" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo main)" >>"$LOG" 2>&1 \
-      || git -C "$doel" pull --rebase --autostash --quiet >>"$LOG" 2>&1 || true
+    tak="$(git -C "$doel" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+    [ -n "$tak" ] || tak="main"
+    if [ -n "$(git -C "$doel" status --porcelain 2>/dev/null)" ]; then
+      warn "$doel heeft lokale wijzigingen — niet bijgewerkt (eerst committen of opruimen)"
+      return 0
+    fi
+    voor="$(git -C "$doel" rev-list --count "origin/$tak..HEAD" 2>/dev/null || echo 0)"
+    if [ "${voor:-0}" != "0" ]; then
+      warn "$doel heeft $voor lokale commit(s) die niet op origin/$tak staan — niet bijgewerkt"
+      return 0
+    fi
+    git -C "$doel" reset --hard --quiet "origin/$tak" >>"$LOG" 2>&1 \
+      || git -C "$doel" pull --ff-only --quiet >>"$LOG" 2>&1 || true
   else
     rm -rf "$doel"
     gh repo clone "$GITHUB_ACCOUNT/$repo" "$doel" -- --quiet >>"$LOG" 2>&1 || return 1
@@ -917,6 +948,13 @@ installeer_mcp() {
   heeft_toegang "$SER_MCP_REPO" || return 1
   local url="https://github.com/$GITHUB_ACCOUNT/$SER_MCP_REPO.git"
   if [ -d "$SER_MCP_DIR/.git" ]; then
+    # Alleen onze eigen wegwerpkopie resetten: een sparse checkout met
+    # mcp-server/. Een gewone clone (iemands werkkopie) blijft onaangeraakt.
+    if [ "$(git -C "$SER_MCP_DIR" config --bool core.sparseCheckout 2>/dev/null)" != "true" ]; then
+      fail "$SER_MCP_DIR is geen ser-MCP-kopie (geen sparse checkout) — niet aangeraakt."
+      info "Verplaats die map, of zet SER_MCP_DIR naar een andere plek."
+      return 1
+    fi
     info "ser-MCP bijwerken in $SER_MCP_DIR..."
     git -C "$SER_MCP_DIR" fetch --quiet --depth 1 origin main >>"$LOG" 2>&1 || return 1
     git -C "$SER_MCP_DIR" reset --quiet --hard FETCH_HEAD >>"$LOG" 2>&1 || return 1

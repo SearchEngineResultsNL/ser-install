@@ -102,6 +102,8 @@ trap 'rm -f "${SER_INSTALL_SELF:-}"' EXIT INT TERM
 #   type = uv      Streamlit-tool, wordt een commando via 'uv tool install'
 #   type = clone   repo naar een map halen en zijn eigen install.sh draaien
 #   type = skills  skills en subagents naar ~/.claude zetten
+#   type = mcp     alleen-lezen kopie van de ser-MCP (map mcp-server/ uit de
+#                  platform-repo) in ~/.ser-mcp, zoals de agents die verwachten
 #
 # pakketten is een lijst met komma's; een onderdeel mag in meerdere
 # pakketten zitten (ser-search-console-export hoort bij seo én data).
@@ -131,10 +133,12 @@ CATALOGUS=(
   "ser-handtekeningen|uv|kantoor|Gmail-handtekeningen centraal uitrollen over alle medewerkers"
 
   "KOP|Claude Code: agent en skills"
-  "ai-agent|clone|ads|Google Ads-agent met klantcontext, rapportages en audits"
-  "seo-agent|clone|seo|SEO-agent: SEO-audits met rapport in SER-huisstijl (samen bouwen)"
-  "skills-seo|skills|seo|De /seo-commando's in Claude Code plus hun zes subagents"
-  "skills-ads|skills|ads|De /ads-commando's in Claude Code plus hun zes subagents"
+  "ser-mcp|mcp|agents|De ser-MCP: brug naar Studio en Tools voor Claude (met je persoonstoken)"
+  "ai-agent|clone|ads,agents|Google Ads-agent met klantcontext, rapportages en audits"
+  "seo-agent|clone|seo,agents|SEO-agent: SEO-audits met rapport in SER-huisstijl (samen bouwen)"
+  "cro-agent|clone|cro,agents|CRO-agent: platform-audits van sites en landingspagina's"
+  "skills-seo|skills|seo,agents|De /seo-commando's in Claude Code plus hun zes subagents"
+  "skills-ads|skills|ads,agents|De /ads-commando's in Claude Code plus hun zes subagents"
 )
 
 # ── Pakketten ───────────────────────────────────────────────────────
@@ -144,6 +148,8 @@ PAKKETTEN=(
   "seo|Alles voor SEO: 14 tools, de SEO-agent en de /seo-audits in Claude Code"
   "ads|Alles voor advertenties: de Google Ads-agent plus de /ads-audits"
   "data|Alleen de data-exports: Search Console, GA4, backlinkdata"
+  "cro|De CRO-agent"
+  "agents|De ser-MCP, de SEO-, CRO- en Ads-agent en de skills (zie persoon.sh)"
   "kantoor|Losse kantoortools"
   "alles|Alles hierboven bij elkaar"
 )
@@ -268,7 +274,17 @@ brew_bin() {
 }
 
 BREW_OK=0
-if BREW="$(brew_bin)" 2>/dev/null && "$BREW" --version >/dev/null 2>&1; then
+# SER_GEEN_BREW_INSTALL=1 (persoon.sh, of een proefrun): Homebrew niet
+# ongevraagd installeren. persoon.sh vraagt het zelf als het echt nodig is.
+if [ "${SER_GEEN_BREW_INSTALL:-0}" = "1" ] || [ "$DRYRUN" = "1" ]; then
+  if BREW="$(brew_bin)" 2>/dev/null && [ -w "$("$BREW" --cellar 2>/dev/null || echo /nonexistent)" ]; then
+    BREW_OK=1
+    eval "$("$BREW" shellenv)" 2>/dev/null || true
+    ok "Homebrew aanwezig"
+  else
+    info "Homebrew niet gebruikt; de rest wordt los opgehaald."
+  fi
+elif BREW="$(brew_bin)" 2>/dev/null && "$BREW" --version >/dev/null 2>&1; then
   # Aanwezig is niet hetzelfde als bruikbaar: Homebrew kan onder een ander
   # gebruikersaccount geïnstalleerd zijn, en dan is de Cellar niet beschrijfbaar.
   if [ -w "$("$BREW" --cellar 2>/dev/null || echo /nonexistent)" ]; then
@@ -694,7 +710,7 @@ if [ "$#" -gt 0 ]; then
       ok "$arg"
     else
       fail "Onbekend: $arg"
-      info "Pakketten: seo · ads · data · kantoor · alles"
+      info "Pakketten: seo · ads · cro · agents · data · kantoor · alles"
       info "Of een onderdeelnaam uit de catalogus, bijvoorbeeld ser-alt-teksten."
     fi
   done
@@ -742,7 +758,7 @@ CLAUDE_NIEUW=0
 
 claude_code_nodig() {
   case " ${SELECTIE[*]-} " in
-    *" skills-"*|*" ai-agent "*|*" seo-agent "*) return 0 ;;
+    *" skills-"*|*" ai-agent "*|*" seo-agent "*|*" cro-agent "*|*" ser-mcp "*) return 0 ;;
   esac
   return 1
 }
@@ -848,6 +864,7 @@ installeer_clone() {
   case "$naam" in
     ai-agent) doel="${AI_AGENT_DIR:-$HOME/AI Agent}" ;;
     seo-agent) doel="${SEO_AGENT_DIR:-$HOME/SEO Agent}" ;;
+    cro-agent) doel="${CRO_AGENT_DIR:-$HOME/CRO Agent}" ;;
     *)        doel="$WERKMAP/$naam" ;;
   esac
 
@@ -857,6 +874,7 @@ installeer_clone() {
     info "Hernoem of verplaats die map eerst, of kies een andere locatie:"
     info "  AI_AGENT_DIR=\"\$HOME/AI Agent 2\" bash install.sh ads"
     info "  SEO_AGENT_DIR=\"\$HOME/SEO Agent 2\" bash install.sh seo"
+    info "  CRO_AGENT_DIR=\"\$HOME/CRO Agent 2\" bash install.sh cro"
     return 1
   fi
 
@@ -886,6 +904,43 @@ installeer_skills() {
   return 0
 }
 
+# --- type mcp: de ser-MCP als alleen-lezen kopie in ~/.ser-mcp -------
+#
+# Zelfde indeling als de agents zelf maken (scripts/ser-mcp-bijwerken.sh in
+# de agent-repo's): een ondiepe sparse-clone met alleen mcp-server/, pushen
+# uitgezet. Geen platformcode of data erbij. De agents en persoon.sh vinden
+# hem daar vanzelf.
+SER_MCP_DIR="${SER_MCP_DIR:-$HOME/.ser-mcp}"
+SER_MCP_REPO="ser-automation-platform"
+
+installeer_mcp() {
+  heeft_toegang "$SER_MCP_REPO" || return 1
+  local url="https://github.com/$GITHUB_ACCOUNT/$SER_MCP_REPO.git"
+  if [ -d "$SER_MCP_DIR/.git" ]; then
+    info "ser-MCP bijwerken in $SER_MCP_DIR..."
+    git -C "$SER_MCP_DIR" fetch --quiet --depth 1 origin main >>"$LOG" 2>&1 || return 1
+    git -C "$SER_MCP_DIR" reset --quiet --hard FETCH_HEAD >>"$LOG" 2>&1 || return 1
+  else
+    if [ -e "$SER_MCP_DIR" ] && [ -n "$(ls -A "$SER_MCP_DIR" 2>/dev/null)" ]; then
+      fail "$SER_MCP_DIR bestaat al maar is geen ser-MCP-kopie. Verplaats die map eerst."
+      return 1
+    fi
+    info "ser-MCP ophalen naar $SER_MCP_DIR (alleen mcp-server/)..."
+    git clone --quiet --depth 1 --filter=blob:none --sparse --no-tags --branch main \
+      "$url" "$SER_MCP_DIR" >>"$LOG" 2>&1 || { rm -rf "$SER_MCP_DIR"; return 1; }
+    git -C "$SER_MCP_DIR" remote set-url --push origin DISABLED_read_only >>"$LOG" 2>&1 || true
+  fi
+  git -C "$SER_MCP_DIR" sparse-checkout set --no-cone /mcp-server/ >>"$LOG" 2>&1 || return 1
+  [ -f "$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh" ] || { fail "startscript ontbreekt in de kopie"; return 1; }
+  chmod +x "$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh" 2>/dev/null || true
+  info "Python-libraries van de MCP klaarzetten (Python $PYTHON_VERSIE)..."
+  uv run --no-project --quiet --python "$PYTHON_VERSIE" \
+    --with-requirements "$SER_MCP_DIR/mcp-server/requirements.txt" \
+    python -c 'import mcp, httpx' >>"$LOG" 2>&1 || return 1
+  date +%s > "$SER_MCP_DIR/.bijgewerkt" 2>/dev/null || true
+  return 0
+}
+
 for naam in "${SELECTIE[@]}"; do
   soort="$(cat_type "$naam" || echo '')"
   printf '  %s%s%s %s(%s)%s\n' "$BOLD" "$naam" "$RESET" "$DIM" "$soort" "$RESET"
@@ -896,6 +951,7 @@ for naam in "${SELECTIE[@]}"; do
     # de stap die in de praktijk struikelt, en hij verandert niets.
     case "$soort" in
       skills) heeft_toegang "ser-skills" || gelukt=0 ;;
+      mcp)    heeft_toegang "$SER_MCP_REPO" || gelukt=0 ;;
       *)      heeft_toegang "$naam"      || gelukt=0 ;;
     esac
     [ "$gelukt" -eq 1 ] && info "toegang in orde — zou nu geïnstalleerd worden ($soort)"
@@ -904,6 +960,7 @@ for naam in "${SELECTIE[@]}"; do
       uv)     installeer_uv "$naam"     || gelukt=0 ;;
       clone)  installeer_clone "$naam"  || gelukt=0 ;;
       skills) installeer_skills "$naam" || gelukt=0 ;;
+      mcp)    installeer_mcp            || gelukt=0 ;;
       *)      fail "onbekend type '$soort'"; gelukt=0 ;;
     esac
   fi
@@ -971,6 +1028,19 @@ if [ "${#GELUKT[@]}" -gt 0 ]; then
       printf '\n'
       info "De SEO-agent staat in: ${SEO_AGENT_DIR:-$HOME/SEO Agent}"
       info "Lees daar README.md en docs/samenwerken.md."
+      ;;
+  esac
+  case " ${GELUKT[*]} " in
+    *" cro-agent "*)
+      printf '\n'
+      info "De CRO-agent staat in: ${CRO_AGENT_DIR:-$HOME/CRO Agent}"
+      ;;
+  esac
+  case " ${GELUKT[*]} " in
+    *" ser-mcp "*)
+      printf '\n'
+      info "De ser-MCP staat in: $SER_MCP_DIR"
+      info "Koppelen met je persoonstoken: zie persoon.sh in de README."
       ;;
   esac
 fi

@@ -44,9 +44,10 @@ case "$1" in
       set -- $rest; d=""; a=""; pw=""
       while [ $# -gt 0 ]; do case "$1" in -s) d="$2"; shift ;; -a) a="$2"; shift ;; -w) pw="$2"; shift ;; esac; shift; done
       grep -vF "$d|$a|" "$FAKE/hanger" > "$FAKE/hanger.n" || true
+      [ "${FAKE_SECURITY_KAPOT:-0}" = "1" ] && pw="verminkt"
       printf '%s|%s|%s\n' "$d" "$a" "$pw" >> "$FAKE/hanger.n"; mv "$FAKE/hanger.n" "$FAKE/hanger"
     done
-    exit 0 ;;
+    exit "${FAKE_SECURITY_RC:-0}" ;;
 esac
 exit 1
 SH
@@ -60,7 +61,9 @@ case "$1 ${2:-}" in
   "auth login") exit 1 ;;
   "mcp remove") rm -f "$FAKE/claude-mcp.json" ;;
   "mcp add-json") printf '%s' "$6" > "$FAKE/claude-mcp.json" ;;
-  "mcp get") [ -f "$FAKE/claude-mcp.json" ] && printf 'ser:\n  Scope: User config\n  Status: ✔ Connected\n' || echo 'No MCP server named "ser".' ;;
+  "mcp get") if [ -f "$FAKE/claude-mcp.json" ]; then
+               printf 'ser:\n  Scope: User config\n  Status: ✔ Connected\n  Command: %s\n' "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["command"])' "$FAKE/claude-mcp.json")"
+             else echo 'No MCP server named "ser".'; fi ;;
 esac
 exit 0
 SH
@@ -174,11 +177,12 @@ draai "$GOED\n"
 unset CONDA_DEFAULT_ENV
 check "verse installatie eindigt met exit 0" '[ "$RC" -eq 0 ]' "$UIT"
 check "token staat onder ser-persoonstoken in de (nep-)sleutelhanger" 'grep -qxF "ser-persoonstoken|robin|$GOED" "$FAKE/hanger"'
-check "token komt in geen enkele argumentenlijst" '! grep -q "sera_" "$FAKE/argv.log"' "$(grep sera_ "$FAKE/argv.log")"
+check "token komt in geen enkele argumentenlijst" '! grep -q "Geheim" "$FAKE/argv.log"' "$(grep Geheim "$FAKE/argv.log")"
 check "token komt niet in de uitvoer" '! printf "%s" "$UIT" | grep -q "GoedGeheim"'
 check "token staat in geen enkel bestand in HOME" '! grep -rqs "GoedGeheim" "$HOME"'
-check "token staat niet in het logboek" '! grep -qs "GoedGeheim" "$T/ser-persoon.log"'
+check "logboek via mktemp, zonder token" 'ls "$T"/ser-persoon.* >/dev/null 2>&1 && ! grep -qs "GoedGeheim" "$T"/ser-persoon.*'
 check "security alleen met -i (nooit -w <token>)" 'grep -q "^security -i$" "$FAKE/argv.log"'
+check "curl: -q eerst, alleen https" 'grep -q "^curl -q .*--proto =https" "$FAKE/argv.log"'
 check "controle via capabilities met de kop op stdin (-K -)" 'grep -q "^curl .*-K - https://api-analytics.searchengineresults.nl/api/agent/analytics/capabilities" "$FAKE/argv.log"'
 check "medewerker uit capabilities gemeld" 'printf "%s" "$UIT" | grep -q "persoonstoken van robin@searchengineresults.nl"'
 check "conda gemeld, niet aangepast" 'printf "%s" "$UIT" | grep -q "Conda is actief (base)"'
@@ -202,7 +206,7 @@ check "tweede run: vraagt niet opnieuw om het token" '! printf "%s" "$UIT" | gre
 check "tweede run: geen nieuwe schrijfactie in de sleutelhanger" '! grep -q "^security -i" "$FAKE/argv.log"'
 check "tweede run: app-config ongewijzigd, geen extra back-up" 'printf "%s" "$UIT" | grep -q "koppeling stond er al" && [ "$(ls "$DESK" | grep -c bak-ser)" = "$BAKS" ]'
 check "tweede run: één regel in de sleutelhanger" '[ "$(grep -c "^ser-persoonstoken|" "$FAKE/hanger")" = "1" ]'
-check "tweede run: ook bij een bestaande sleutel geen token in argv" '! grep -q "sera_" "$FAKE/argv.log"'
+check "tweede run: ook bij een bestaande sleutel geen token in argv" '! grep -q "Geheim" "$FAKE/argv.log"'
 
 # 3. --nieuw-token vervangt
 draai "$NIETPERSOON\n" --nieuw-token
@@ -218,7 +222,7 @@ draai "$FOUT\n$FOUT\n$FOUT\n" --zonder-agents
 check "401 geeft een duidelijke melding" 'printf "%s" "$UIT" | grep -q "weigert dit token (401)"'
 check "ongeldig token wordt niet opgeslagen" '! grep -q "^ser-persoonstoken|" "$FAKE/hanger"'
 check "ongeldig token: exit ≠ 0" '[ "$RC" -ne 0 ]'
-check "geen token in argv bij een fout token" '! grep -q "sera_" "$FAKE/argv.log"'
+check "geen token in argv bij een fout token" '! grep -q "Geheim" "$FAKE/argv.log"'
 opruimen
 
 # 5. Rommel om het token heen wordt weggehaald; vorm wordt gecontroleerd
@@ -304,6 +308,52 @@ if ! (: < /dev/tty) 2>/dev/null; then
 else
   printf '  - test zonder terminal overgeslagen (deze sessie heeft een terminal)\n'
 fi
+
+# 14. Opslaan mislukt of klopt niet: ✗ met duidelijke melding
+maak_omgeving
+export FAKE_SECURITY_KAPOT=1
+draai "$GOED\n" --zonder-agents
+unset FAKE_SECURITY_KAPOT
+check "teruggelezen token klopt niet → melding" 'printf "%s" "$UIT" | grep -q "klopt niet met wat je plakte" && printf "%s" "$UIT" | grep -q "✗ Persoonstoken niet opgeslagen"' "$UIT"
+check "verminkt token niet afgedrukt" '! printf "%s" "$UIT" | grep -q "GoedGeheim"'
+opruimen
+maak_omgeving
+export FAKE_SECURITY_RC=3
+draai "$GOED\n" --zonder-agents
+unset FAKE_SECURITY_RC
+check "security -i met fout-exitcode → melding" 'printf "%s" "$UIT" | grep -q "exitcode 3"' "$UIT"
+opruimen
+
+# 15. Testhaken alleen met SER_PERSOON_TEST=1; bronnen alleen van SearchEngineResultsNL
+maak_omgeving
+UIT="$(env -u SER_PERSOON_TEST SER_INSTALL_SH="$FAKE/install.sh" bash "$REPO/persoon.sh" --droog < /dev/null 2>&1)"
+check "zonder SER_PERSOON_TEST: haak luid genegeerd" 'printf "%s" "$UIT" | grep -q "SER_INSTALL_SH genegeerd"' "$UIT"
+check "zonder SER_PERSOON_TEST: nep-install.sh niet gebruikt" '! grep -q "^install.sh" "$FAKE/argv.log"'
+UIT="$(SER_INSTALL_BASIS=https://voorbeeld.invalid/x bash "$REPO/persoon.sh" < /dev/null 2>&1)"; RC=$?
+check "SER_INSTALL_BASIS buiten SearchEngineResultsNL geweigerd" '[ "$RC" -ne 0 ] && printf "%s" "$UIT" | grep -q "geweigerd"'
+UIT="$(env -u SER_PERSOON_TEST SER_ANALYTICS_API_URL=https://voorbeeld.invalid bash "$REPO/persoon.sh" < /dev/null 2>&1)"; RC=$?
+check "andere analytics-host zonder testvlag geweigerd, host getoond" '[ "$RC" -ne 0 ] && printf "%s" "$UIT" | grep -q "voorbeeld.invalid"'
+printf '%s\n' "$GOED" > "$T/invoer"
+UIT="$(SER_PERSOON_INVOER="$T/invoer" SER_INSTALL_BASIS=https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/branch bash "$REPO/persoon.sh" --zonder-agents 2>&1)"
+check "afwijkende maar toegestane bron luid gemeld" 'printf "%s" "$UIT" | grep -q "Afwijkende bron"'
+opruimen
+
+# 16. App-config: back-ups 0600, hooguit 3; oud commando gemeld; mcpServers geen object → niet aanraken
+maak_omgeving
+for i in 1 2 3 4; do
+  python3 -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['mcpServers']['ser']={'command':'/oud/$i'}; json.dump(d,open(p,'w'))" "$DESK/claude_desktop_config.json"
+  draai "$GOED\n" --zonder-agents
+done
+check "oud ser-commando gemeld bij vervangen (app)" 'printf "%s" "$UIT" | grep -q "Die startte: /oud/4"' "$UIT"
+check "hooguit 3 back-ups" '[ "$(ls "$DESK" | grep -c bak-ser)" = "3" ]' "$(ls "$DESK")"
+check "back-ups 0600" 'for b in "$DESK"/*.bak-ser-*; do [ "$(stat -f %Lp "$b" 2>/dev/null || stat -c %a "$b")" = "600" ] || exit 1; done'
+printf '{"command":"/oud/server.py","args":[]}' > "$FAKE/claude-mcp.json"
+draai "" --zonder-agents
+check "oud ser-commando gemeld bij vervangen (Claude Code)" 'printf "%s" "$UIT" | grep -q "Die startte: /oud/server.py"' "$UIT"
+printf '{"mcpServers": ["lijst"]}' > "$DESK/claude_desktop_config.json"
+draai "" --zonder-agents
+check "mcpServers geen object → niet aangeraakt" '[ "$(cat "$DESK/claude_desktop_config.json")" = "{\"mcpServers\": [\"lijst\"]}" ] && printf "%s" "$UIT" | grep -q "geen geldige JSON"'
+opruimen
 
 printf '\ninstall.sh en collega-toevoegen.sh\n'
 

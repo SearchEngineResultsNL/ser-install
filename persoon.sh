@@ -24,6 +24,10 @@
 #    5. De ser-MCP koppelen aan Claude Code én aan de Claude-app.
 #    6. Eindcontrole met ✓/✗ per stap.
 #
+#  Eén regel in je ~/.zshrc (en ~/.bash_profile als die bestaat):
+#  export PATH="$HOME/.local/bin:$PATH" — alleen als uv of Claude Code daar
+#  nieuw geïnstalleerd wordt en de regel er nog niet staat. Het script meldt het.
+#
 #  Opties (na 'bash -s --'):
 #      --droog            alleen kijken, niets installeren of wijzigen
 #      --nieuw-token      altijd opnieuw om het token vragen (vervangen)
@@ -46,8 +50,45 @@
 set -uo pipefail
 umask 077
 
-BASIS_URL="${SER_INSTALL_BASIS:-https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main}"
-ANALYTICS_URL="${SER_ANALYTICS_API_URL:-https://api-analytics.searchengineresults.nl}"
+# ── Testhaken en bronnen (review 12-11) ─────────────────────────────
+# De haken hieronder zijn er alleen voor tests/persoon.test.sh. Zonder
+# SER_PERSOON_TEST=1 worden ze genegeerd (en luid gemeld), zodat niemand een
+# collega met een omgevingsvariabele een ander script of een andere host kan
+# laten gebruiken.
+TEST=0; [ "${SER_PERSOON_TEST:-}" = "1" ] && TEST=1
+STANDAARD_BASIS="https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main"
+STANDAARD_ANALYTICS="https://api-analytics.searchengineresults.nl"
+for _haak in SER_INSTALL_SH SER_BREW_BIN SER_CLAUDE_APP SER_DESKTOP_CONFIG SER_PERSOON_INVOER SER_MCP_DIR; do
+  eval "_w=\${$_haak:-}"
+  [ -n "$_w" ] || continue
+  if [ "$TEST" -eq 1 ]; then
+    printf '!! Testhaak actief: %s=%s\n' "$_haak" "$_w" >&2
+  else
+    printf '!! %s genegeerd: alleen voor tests (SER_PERSOON_TEST=1).\n' "$_haak" >&2
+    unset "$_haak"
+  fi
+done
+unset _haak _w
+BASIS_URL="${SER_INSTALL_BASIS:-$STANDAARD_BASIS}"
+if [ "$BASIS_URL" != "$STANDAARD_BASIS" ]; then
+  case "$BASIS_URL" in
+    https://raw.githubusercontent.com/SearchEngineResultsNL/*)
+      printf '!! Afwijkende bron voor install.sh: %s\n' "$BASIS_URL" >&2 ;;
+    *)
+      printf 'Fout: SER_INSTALL_BASIS wijst buiten SearchEngineResultsNL: %s — geweigerd.\n' "$BASIS_URL" >&2
+      exit 1 ;;
+  esac
+fi
+ANALYTICS_URL="${SER_ANALYTICS_API_URL:-$STANDAARD_ANALYTICS}"
+if [ "$ANALYTICS_URL" != "$STANDAARD_ANALYTICS" ]; then
+  if [ "$TEST" -eq 1 ]; then
+    printf '!! Testhaak actief: token gaat naar %s\n' "$ANALYTICS_URL" >&2
+  else
+    printf 'Fout: je token zou naar %s gaan in plaats van %s — geweigerd.\n' "$ANALYTICS_URL" "$STANDAARD_ANALYTICS" >&2
+    printf 'Haal SER_ANALYTICS_API_URL weg uit je omgeving en probeer opnieuw.\n' >&2
+    exit 1
+  fi
+fi
 PYTHON_VERSIE="3.12"
 NODE_MIN=20
 PERSOON_DIENST="ser-persoonstoken"
@@ -55,7 +96,7 @@ OUDE_DIENSTEN="ser-tools-agent ser-ads-agent ser-cro-agent ser-seo-agent"
 SER_MCP_DIR="${SER_MCP_DIR:-$HOME/.ser-mcp}"
 MCP_START="$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh"
 DESKTOP_CONFIG="${SER_DESKTOP_CONFIG:-$HOME/Library/Application Support/Claude/claude_desktop_config.json}"
-LOG="${TMPDIR:-/tmp}/ser-persoon.log"
+LOG="$(mktemp "${TMPDIR:-/tmp}/ser-persoon.XXXXXX")" || { printf 'Fout: kon geen logboek aanmaken.\n' >&2; exit 1; }
 TOKEN_PATROON='^sera_[0-9a-f]{16}\.[A-Za-z0-9_-]{16,}$'
 
 DROOG=0; NIEUW=0; ZONDER_AGENTS=0; ZONDER_APP=0; AGENTS="seo,cro,ads"
@@ -131,14 +172,16 @@ pad_vastleggen() {
     [ -f "$rc" ] || { [ "$rc" = "$HOME/.zshrc" ] && touch "$rc" 2>/dev/null; } || continue
     [ -w "$rc" ] || continue
     grep -qF '.local/bin' "$rc" 2>/dev/null && continue
-    printf '\n# Toegevoegd door de SER-installatie\n%s\n' "$regel" >> "$rc" 2>/dev/null || true
+    if printf '\n# Toegevoegd door de SER-installatie\n%s\n' "$regel" >> "$rc" 2>/dev/null; then
+      info "PATH-regel toegevoegd aan $rc (export PATH=\"\$HOME/.local/bin:\$PATH\")"
+    fi
   done
   return 0
 }
 
 brew_bin() {
   # SER_BREW_BIN: alleen voor de tests (een pad dat niet bestaat = geen Homebrew).
-  if [ -n "${SER_BREW_BIN:-}" ]; then [ -x "$SER_BREW_BIN" ] && { echo "$SER_BREW_BIN"; return 0; }; return 1; fi
+  if [ "$TEST" -eq 1 ] && [ -n "${SER_BREW_BIN:-}" ]; then [ -x "$SER_BREW_BIN" ] && { echo "$SER_BREW_BIN"; return 0; }; return 1; fi
   command -v brew 2>/dev/null && return 0
   [ -x /opt/homebrew/bin/brew ] && { echo /opt/homebrew/bin/brew; return 0; }
   [ -x /usr/local/bin/brew ] && { echo /usr/local/bin/brew; return 0; }
@@ -368,6 +411,16 @@ token_opschonen() {
   printf '%s' "$t"
 }
 
+# Wat na het token nog in de terminalbuffer staat (een dubbele Enter, een
+# tweede plakactie) mag niet als antwoord op de volgende vraag gelden.
+# Alleen bij een echte terminal; bash 3.2 kent geen -t met breuken.
+tty_leeglezen() {
+  [ -t 0 ] || return 0
+  local _x
+  while IFS= read -rs -t 1 _x; do _x=""; done
+  return 0
+}
+
 in_sleutelhanger() { security find-generic-password -s "$1" -a "$GEBRUIKER" >/dev/null 2>&1; }
 
 # Zet het token via de invoer van 'security -i'. printf is ingebouwd en
@@ -376,9 +429,23 @@ in_sleutelhanger() { security find-generic-password -s "$1" -a "$GEBRUIKER" >/de
 token_opslaan() {
   local token="$1"
   case "$GEBRUIKER" in *[!A-Za-z0-9._-]*) fail "Gebruikersnaam '$GEBRUIKER' kan ik niet veilig doorgeven."; return 1 ;; esac
+  local rc terug
   printf 'add-generic-password -U -s %s -a %s -w %s\n' "$PERSOON_DIENST" "$GEBRUIKER" "$token" \
     | security -i >/dev/null 2>&1
-  in_sleutelhanger "$PERSOON_DIENST"
+  rc="${PIPESTATUS[1]}"
+  if [ "$rc" != "0" ]; then
+    fail "De sleutelhanger gaf een fout bij het opslaan (security, exitcode $rc)."
+    return 1
+  fi
+  # Teruglezen en vergelijken; alleen in een shellvariabele, nooit afgedrukt.
+  terug="$(security find-generic-password -s "$PERSOON_DIENST" -a "$GEBRUIKER" -w 2>/dev/null || true)"
+  if [ "$terug" != "$token" ]; then
+    terug=""
+    fail "Het token in de sleutelhanger klopt niet met wat je plakte (teruglezen mislukt)."
+    return 1
+  fi
+  terug=""
+  return 0
 }
 
 # Lichte controle bij het platform: GET /api/agent/analytics/capabilities.
@@ -389,7 +456,7 @@ token_controleren() {
   local token="$1" uit code
   uit="$(mktemp)"
   code="$(printf 'header = "Authorization: Bearer %s"\n' "$token" \
-          | curl -sS --max-time 20 -o "$uit" -w '%{http_code}' -K - \
+          | curl -q -sS --proto =https --max-time 20 -o "$uit" -w '%{http_code}' -K - \
               "$ANALYTICS_URL/api/agent/analytics/capabilities" 2>>"$LOG")" || true
   case "$code" in ''|*[!0-9]*) code="000" ;; esac
   TOKEN_STATUS="$code"; TOKEN_PERSOON=0; TOKEN_WIE=""
@@ -463,6 +530,7 @@ stap_token() {
       return 1
     fi
     printf '\n'
+    tty_leeglezen
     token="$(token_opschonen "$invoer")"; invoer=""
     if [ -z "$token" ]; then
       warn "Overgeslagen."
@@ -651,6 +719,12 @@ stap_mcp() {
   elif [ "$DROOG" -eq 1 ]; then
     droog "zou koppelen: claude mcp add-json -s user ser '$(mcp_json 0)'"
   else
+    local oud
+    oud="$(claude mcp get ser 2>/dev/null | sed -n 's/^ *Command: *//p' | head -1)"
+    case "$oud" in *sera_*) oud="(bevatte een token — weggehaald)" ;; esac
+    if [ -n "$oud" ] && [ "$oud" != "$MCP_START" ]; then
+      warn "Bestaande koppeling 'ser' wordt vervangen. Die startte: $oud"
+    fi
     claude mcp remove ser -s user >/dev/null 2>&1 || true
     if claude mcp add-json -s user ser "$(mcp_json 0)" >>"$LOG" 2>&1; then
       ok "Gekoppeld in Claude Code (naam: ser, voor al je mappen)"
@@ -683,10 +757,11 @@ desktop_config_bijwerken() {
   mkdir -p "$map"
   local py
   py="$(cat <<'PY'
-import json, os, sys, time, shutil, tempfile
+import glob, json, os, sys, time, tempfile
 pad, server = sys.argv[1], json.loads(sys.argv[2])
 server.pop("type", None)
 data = {}
+oud = None
 if os.path.exists(pad) and os.path.getsize(pad) > 0:
     try:
         with open(pad, encoding="utf-8") as f:
@@ -695,9 +770,28 @@ if os.path.exists(pad) and os.path.getsize(pad) > 0:
         print("ongeldig"); sys.exit(3)
     if not isinstance(data, dict):
         print("ongeldig"); sys.exit(3)
-    if data.get("mcpServers", {}).get("ser") == server:
+    if "mcpServers" in data and not isinstance(data["mcpServers"], dict):
+        print("ongeldig"); sys.exit(3)
+    huidig = data.get("mcpServers", {}).get("ser")
+    if huidig == server:
         print("al"); sys.exit(0)
-    shutil.copy2(pad, pad + ".bak-ser-" + time.strftime("%Y%m%d-%H%M%S"))
+    if isinstance(huidig, dict):
+        oud = str(huidig.get("command", ""))
+        if "sera_" in json.dumps(huidig):
+            oud = oud + " (bevatte een token — weggehaald)"
+    # Back-up: nieuw bestand (x = nooit overschrijven), 0600, hooguit 3 bewaren.
+    stempel = time.strftime("%Y%m%d-%H%M%S")
+    for n in range(100):
+        bak = pad + ".bak-ser-" + stempel + ("" if n == 0 else "-%d" % n)
+        try:
+            fd = os.open(bak, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            break
+        except FileExistsError:
+            continue
+    with open(pad, "rb") as bron, os.fdopen(fd, "wb") as doel:
+        doel.write(bron.read())
+    for weg in sorted(glob.glob(glob.escape(pad) + ".bak-ser-*"), key=os.path.getmtime)[:-3]:
+        os.remove(weg)
 servers = data.get("mcpServers")
 if not isinstance(servers, dict):
     servers = {}
@@ -709,6 +803,9 @@ with os.fdopen(fd, "w", encoding="utf-8") as f:
     f.write("\n")
 os.chmod(tmp, 0o600)
 os.replace(tmp, pad)
+if oud is not None:
+    print("vervangen:" + oud)
+    sys.exit(0)
 print("bijgewerkt")
 PY
 )"
@@ -716,6 +813,8 @@ PY
   uit="$(uv run --no-project --quiet --python "$PYTHON_VERSIE" python -I -c "$py" "$DESKTOP_CONFIG" "$(mcp_json 1)" 2>>"$LOG")"
   case "$uit" in
     al)         ok "Claude-app: koppeling stond er al"; uitslag "✓" "MCP 'ser' in de Claude-app" ;;
+    vervangen:*) warn "Claude-app: bestaande koppeling 'ser' vervangen. Die startte: ${uit#vervangen:}"
+                ok "Claude-app: koppeling bijgewerkt (back-up naast het bestand). Herstart de app."; uitslag "✓" "MCP 'ser' in de Claude-app (herstart de app)" ;;
     bijgewerkt) ok "Claude-app: koppeling toegevoegd (back-up naast het bestand). Herstart de app."; uitslag "✓" "MCP 'ser' in de Claude-app (herstart de app)" ;;
     ongeldig)   fail "De Claude-app-config is geen geldige JSON; niets aangeraakt: $DESKTOP_CONFIG"
                 uitslag "✗" "MCP in de Claude-app (config ongeldig)" ;;

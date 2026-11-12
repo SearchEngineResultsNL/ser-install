@@ -598,7 +598,7 @@ stap_agents() {
 
 # Leesrecht per repo; ontbreekt het, dan zeggen we precies wat Marten moet doen.
 toegang_melden() {
-  local onderdelen="$1" o repo login ontbreekt=""
+  local onderdelen="$1" o repo login ontbreekt="" gezien=" "
   command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1 || {
     [ "$DROOG" -eq 1 ] && droog "niet ingelogd bij GitHub; toegang niet gecontroleerd"
     return 0
@@ -606,7 +606,8 @@ toegang_melden() {
   login="$(gh api user --jq .login 2>/dev/null || echo '<github-naam>')"
   for o in $onderdelen; do
     repo="$(repo_van "$o")"
-    case " $ontbreekt " in *" $repo "*) continue ;; esac
+    case "$gezien" in *" $repo "*) continue ;; esac
+    gezien="$gezien$repo "
     if gh repo view "SearchEngineResultsNL/$repo" >/dev/null 2>&1; then
       [ "$DROOG" -eq 1 ] && ok "toegang tot $repo"
     else

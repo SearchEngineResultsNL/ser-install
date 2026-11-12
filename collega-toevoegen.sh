@@ -5,7 +5,7 @@
 #
 #   bash collega-toevoegen.sh <github-gebruikersnaam> [pakket] [rol]
 #
-#   pakket  seo · ads · data · kantoor · alles   (standaard: alles)
+#   pakket  seo · ads · cro · agents · data · kantoor · alles   (standaard: alles)
 #   rol     pull (alleen lezen, standaard) · push (mag wijzigen) · admin
 #
 # Voorbeelden:
@@ -27,7 +27,7 @@ INSTALLER="$HIER/install.sh"
 
 if [ -z "$GEBRUIKER" ]; then
   printf 'Gebruik: bash collega-toevoegen.sh <github-gebruikersnaam> [pakket] [rol]\n' >&2
-  printf '  pakket: seo · ads · data · kantoor · alles\n' >&2
+  printf '  pakket: seo · ads · cro · agents · data · kantoor · alles\n' >&2
   printf '  rol:    pull · push · admin\n' >&2
   exit 1
 fi
@@ -53,16 +53,18 @@ while IFS='|' read -r naam _type pakketten; do
   fi
   # skills-seo en skills-ads komen beide uit één repo: ser-skills.
   case "$naam" in skills-*) naam="ser-skills" ;; esac
+  # De ser-MCP is de map mcp-server/ uit de platform-repo (alleen lezen nodig).
+  case "$naam" in ser-mcp) naam="ser-automation-platform" ;; esac
   # Dubbelen eruit
   case " ${REPOS[*]-} " in *" $naam "*) continue ;; esac
   REPOS+=("$naam")
 done < <(sed -n '/^CATALOGUS=(/,/^)/p' "$INSTALLER" \
-         | grep -oE '"[a-z0-9-]+\|(uv|clone|skills)\|[a-z,]+' \
+         | grep -oE '"[a-z0-9-]+\|(uv|clone|skills|mcp)\|[a-z,]+' \
          | tr -d '"')
 
 if [ "${#REPOS[@]}" -eq 0 ]; then
   printf "Geen repo's gevonden voor pakket '%s'.\n" "$PAKKET" >&2
-  printf 'Bestaande pakketten: seo · ads · data · kantoor · alles\n' >&2
+  printf 'Bestaande pakketten: seo · ads · cro · agents · data · kantoor · alles\n' >&2
   exit 1
 fi
 

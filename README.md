@@ -4,6 +4,44 @@ Eén commando om onze tools, de Google Ads-agent en de Claude Code-skills op
 je Mac te zetten. Je hoeft niets voor te bereiden: het script regelt zelf
 Python, `uv`, de GitHub CLI en het inloggen.
 
+## Nieuwe collega: alles in één regel (persoonstoken)
+
+Maak eerst je persoonstoken in Studio: **Beheer › Agents en tokens ›
+Persoonstoken (alle klanten)**. Draai daarna in Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SearchEngineResultsNL/ser-install/main/persoon.sh | bash
+```
+
+Plak je token als erom gevraagd wordt. Het blijft onzichtbaar en gaat alleen
+naar de macOS-sleutelhanger (dienst `ser-persoonstoken`): nooit in die regel,
+je shell-geschiedenis, een bestand of een Claude-config.
+
+Het script zet in één keer goed (opnieuw draaien = repareren):
+
+| Stap | Wat |
+|---|---|
+| 1. Basis | Command Line Tools/git, `uv` met een vaste **Python 3.12**, Node 20+. Je eigen Python (systeem, conda, pyenv) blijft ongemoeid; een actieve conda/oude python3 wordt alleen gemeld. Homebrew alleen als het echt nodig is, na een vraag. |
+| 2. Claude | Claude Code (officiële installer) + inloggen (`claude auth login`), en de Claude-app (na een vraag: `brew install --cask claude` of de downloadpagina). |
+| 3. Token | Verborgen vragen, controleren bij Studio (`/api/agent/analytics/capabilities`; duidelijke melding bij 401/403), opslaan. Staat er al een werkend token, dan wordt niets gevraagd. |
+| 4. Agents | Via `install.sh agents`: GitHub-login, de ser-MCP (`~/.ser-mcp`, alleen `mcp-server/`), de SEO-, CRO- en Ads-agent (`~/SEO Agent`, `~/CRO Agent`, `~/AI Agent`, elk met zijn eigen installatie) en de `/seo`- en `/ads`-skills. |
+| 5. MCP | `ser` op user-scope in Claude Code en in `claude_desktop_config.json` (samengevoegd, met back-up). Alleen het pad naar `start-met-sleutelhanger.sh` en `UV_PYTHON=3.12`, nooit het token. |
+| 6. Controle | `claude mcp get ser` verbonden, een echte testaanroep `ser_klanten` (alleen het aantal klanten), agentmappen; samenvatting met ✓/✗ en wat jij of Marten nog moet doen. |
+
+Opties (`… | bash -s -- <optie>`):
+
+| Optie | |
+|---|---|
+| `--droog` | alleen kijken; installeert en wijzigt niets |
+| `--nieuw-token` | token vervangen (verlopen of ingetrokken) |
+| `--agents=seo,cro` | alleen deze agents (`seo`, `cro`, `ads`) |
+| `--zonder-agents` | alleen token + ser-MCP |
+| `--zonder-app` | de Claude-app overslaan |
+
+Lukt een stap niet (geen GitHub-toegang, nog niet ingelogd), dan zegt de
+samenvatting precies wat er moet gebeuren; daarna dezelfde regel opnieuw.
+Werkt nu alleen op macOS. Logboek: `$TMPDIR/ser-persoon.log`.
+
 ## Een pakket installeren
 
 ```bash
@@ -49,6 +87,8 @@ SER_DRYRUN=1 bash install.sh alles
 |---|---|
 | `seo` | 14 SEO-tools + de `/seo`-skills en hun subagents |
 | `ads` | De Google Ads-agent + de `/ads`-skills en hun subagents |
+| `cro` | De CRO-agent |
+| `agents` | De ser-MCP, de SEO-, CRO- en Ads-agent en de skills (wat `persoon.sh` gebruikt) |
 | `data` | Alleen de data-exports: Search Console, GA4, backlinkdata |
 | `kantoor` | Losse kantoortools |
 | `alles` | Alles hierboven |
@@ -104,6 +144,8 @@ Geen terminalcommando's, maar uitbreidingen van Claude Code zelf.
 |---|---|
 | [`ai-agent`](https://github.com/SearchEngineResultsNL/ai-agent) | Google Ads-agent met klantcontext, rapportages en audits. Komt in `~/AI Agent` en draait daar zijn eigen installatie (15-30 minuten). Lees daarna `HANDLEIDING.md`. |
 | [`seo-agent`](https://github.com/SearchEngineResultsNL/seo-agent) | SEO-agent: SEO-audits met rapport in SER-huisstijl. Komt in `~/SEO Agent` en draait daar `install.sh` (koppeling SER-platform). Samenwerken: `docs/samenwerken.md`. |
+| [`cro-agent`](https://github.com/SearchEngineResultsNL/cro-agent) | CRO-agent: platform-audits van sites en landingspagina's. Komt in `~/CRO Agent`. |
+| `ser-mcp` | De ser-MCP (brug naar Studio en Tools): alleen de map `mcp-server/` uit [`ser-automation-platform`](https://github.com/SearchEngineResultsNL/ser-automation-platform), als alleen-lezen kopie in `~/.ser-mcp`. Koppelen met je token: `persoon.sh`. |
 | `skills-seo` | De `/seo`-commando's plus hun zes subagents. Uit [`ser-skills`](https://github.com/SearchEngineResultsNL/ser-skills). |
 | `skills-ads` | De `/ads`-commando's plus hun zes subagents. Uit dezelfde repo. |
 
@@ -138,6 +180,7 @@ Drie soorten onderdelen, elk met zijn eigen manier van installeren:
 |---|---|
 | `uv` | `uv tool install` maakt van de Streamlit-app een commando in `~/.local/bin`. Elke tool krijgt zijn eigen libraries; ze kunnen elkaar niet breken. |
 | `clone` | De repo wordt gekloond en zijn eigen `install.sh` draait. |
+| `mcp` | Ondiepe sparse-clone van `mcp-server/` naar `~/.ser-mcp` (pushen uit), libraries via `uv` op Python 3.12. Zelfde indeling als `scripts/ser-mcp-bijwerken.sh` in de agents. |
 | `skills` | [`ser-skills`](https://github.com/SearchEngineResultsNL/ser-skills) wordt gekloond en de skills en subagents gaan naar `~/.claude/`. |
 
 Python komt via `uv` en staat vast op **3.12** — `torch` en `umap-learn`
@@ -163,6 +206,16 @@ bash collega-toevoegen.sh <github-gebruikersnaam> seo push     # SEO, mag wijzig
 De repolijst komt uit de catalogus in `install.sh`, dus die hoef je niet op
 twee plekken bij te houden.
 
+Voor `persoon.sh` heeft een collega het pakket `agents` nodig:
+
+```bash
+bash collega-toevoegen.sh <github-gebruikersnaam> agents
+```
+
+Dat geeft leesrecht op `seo-agent`, `cro-agent`, `ai-agent`, `ser-skills` en
+`ser-automation-platform` (voor de ser-MCP; alleen de map `mcp-server/` wordt
+opgehaald, maar het recht geldt voor de hele repo). Ook `alles` bevat ze.
+
 ### Een tool toevoegen
 
 Eén regel in de `CATALOGUS` in `install.sh`:
@@ -185,6 +238,9 @@ De velden zijn `naam|type|pakketten|omschrijving`. Meerdere pakketten mag:
 | De SEO-agent | `SearchEngineResultsNL/seo-agent` (privé) |
 | Elke tool | `SearchEngineResultsNL/ser-<naam>` (privé) |
 | Logboek van een installatie | `$TMPDIR/ser-install.log` |
+| Logboek van `persoon.sh` | `$TMPDIR/ser-persoon.log` |
+| De ser-MCP (kopie) | `~/.ser-mcp/mcp-server/` |
+| Het persoonstoken | macOS-sleutelhanger, dienst `ser-persoonstoken` |
 | Werkmap voor gekloonde repo's | `~/.ser-install/` |
 
 Pas een tool aan **in zijn repo**, niet in een los bestand op je Mac.
@@ -195,6 +251,13 @@ Pas een tool aan **in zijn repo**, niet in een los bestand op je Mac.
 
 **"Het commando wordt niet gevonden"** — open een nieuwe terminal, of draai
 `export PATH="$HOME/.local/bin:$PATH"`.
+
+**Testen** — `bash tests/persoon.test.sh` (nep-commando's, raakt je Mac niet). De testhaken
+(`SER_INSTALL_SH`, `SER_BREW_BIN`, `SER_CLAUDE_APP`, `SER_DESKTOP_CONFIG`, `SER_PERSOON_INVOER`, `SER_MCP_DIR`, een
+andere `SER_ANALYTICS_API_URL`) werken alleen met `SER_PERSOON_TEST=1` en worden luid gemeld; `SER_INSTALL_BASIS` mag
+alleen onder `https://raw.githubusercontent.com/SearchEngineResultsNL/`. Bestaande agentmappen met lokale wijzigingen
+of eigen commits werkt `install.sh` niet bij (waarschuwing), en `~/.ser-mcp` wordt alleen gereset als het een sparse
+kopie is.
 
 **"Geen toegang tot …"** — je GitHub-account is nog geen collaborator, of je
 bent ingelogd met je privé-account. Wisselen: `gh auth switch`.

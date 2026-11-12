@@ -208,6 +208,8 @@ check "tweede run: ook bij een bestaande sleutel geen token in argv" '! grep -q 
 draai "$NIETPERSOON\n" --nieuw-token
 check "--nieuw-token vervangt het token" 'grep -qxF "ser-persoonstoken|robin|$NIETPERSOON" "$FAKE/hanger" && [ "$(grep -c "^ser-persoonstoken|" "$FAKE/hanger")" = "1" ]'
 check "waarschuwing als het geen persoonstoken is" 'printf "%s" "$UIT" | grep -q "geen persoonstoken"'
+draai ""
+check "bestaand token dat geen persoonstoken is: gemeld bij opnieuw draaien" '[ "$RC" -eq 0 ] && printf "%s" "$UIT" | grep -q "geen persoonstoken"'
 opruimen
 
 # 4. Ongeldig token: duidelijke melding bij 401, niets opgeslagen

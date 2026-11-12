@@ -429,6 +429,7 @@ stap_token() {
       bestaand=""
       if [ "$TOKEN_STATUS" = "200" ]; then
         ok "Persoonstoken staat al in de sleutelhanger en werkt${TOKEN_WIE:+ ($TOKEN_WIE)}"
+        [ "$TOKEN_PERSOON" -eq 1 ] || warn "Het werkt, maar het is geen persoonstoken (één klant of een beperkte set). Vervangen: --nieuw-token"
         info "Vervangen kan met: … | bash -s -- --nieuw-token"
         uitslag "✓" "Persoonstoken in de sleutelhanger"
         return 0

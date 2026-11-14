@@ -972,9 +972,16 @@ installeer_mcp() {
   [ -f "$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh" ] || { fail "startscript ontbreekt in de kopie"; return 1; }
   chmod +x "$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh" 2>/dev/null || true
   info "Python-libraries van de MCP klaarzetten (Python $PYTHON_VERSIE)..."
-  uv run --no-project --quiet --python "$PYTHON_VERSIE" \
-    --with-requirements "$SER_MCP_DIR/mcp-server/requirements.txt" \
-    python -c 'import mcp, httpx' >>"$LOG" 2>&1 || return 1
+  local start="$SER_MCP_DIR/mcp-server/start-met-sleutelhanger.sh"
+  if grep -q -- '--alleen-installeren' "$start" 2>/dev/null; then
+    # Gepinde installatie met hashes (requirements.lock, tools S-15), zonder token of sleutelhanger.
+    UV_PYTHON="$PYTHON_VERSIE" "$start" --alleen-installeren >>"$LOG" 2>&1 || return 1
+  else
+    # Oudere kopie zonder de vlag: zoals voorheen (ongepind).
+    uv run --no-project --quiet --python "$PYTHON_VERSIE" \
+      --with-requirements "$SER_MCP_DIR/mcp-server/requirements.txt" \
+      python -c 'import mcp, httpx' >>"$LOG" 2>&1 || return 1
+  fi
   date +%s > "$SER_MCP_DIR/.bijgewerkt" 2>/dev/null || true
   return 0
 }
